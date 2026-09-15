@@ -1,22 +1,32 @@
 # AudioGuard for macOS 🛡️🔊
 
-A lightweight, native macOS Menu Bar application that prevents virtual audio drivers (such as **Jump Desktop Audio**, Zoom, or Teams) from hijacking your default sound output, and automatically restores your physical speakers when remote sessions end.
+A modern, all-in-one native macOS Menu Bar application that replaces the default macOS Sound control. It manages system volume with an iOS-style floating volume HUD, provides one-click switching across all input and output devices, prevents virtual audio drivers (such as **Jump Desktop Audio**, Microsoft Teams, Zoom, Loopback, BlackHole) from hijacking your default sound, and automatically restores your physical speakers when remote sessions end.
 
 ---
 
-## The Problem
-When using **Jump Desktop** with audio sharing enabled:
-1. Jump Desktop switches macOS default audio to its virtual driver (`Jump Desktop Audio`).
-2. Upon disconnection, Jump Desktop often fails to restore the original audio output.
-3. Because virtual audio drivers never physically disconnect, macOS CoreAudio treats them as "always connected" and repeatedly falls back to them whenever temporary devices (like AirPods or Bluetooth headphones) disconnect.
+## Key Features
 
----
+1. **All-in-One Menu Bar Sound Control:**
+   * Replaces the default macOS sound icon with an interactive menu containing a smooth volume slider, percentage readout, and mute toggle.
+   * Dynamic menu bar icon that reflects real-time volume level, mute state, or active remote streaming.
 
-## How AudioGuard Solves It
-* **Allows Jump Desktop Audio when connected:** Detects when an active Jump Desktop remote session is streaming and permits Jump Audio so you can hear your Mac remotely.
-* **Auto-Reverts on Disconnect:** Instantly switches macOS default audio back to your preferred device (e.g. Mac Studio Speakers, Behringer XR18, Yeti X, Monitor Speakers) the moment you disconnect.
-* **Blocks False Fallback:** When AirPods or headphones disconnect, AudioGuard intercepts in <200ms and forces macOS to your physical fallback device instead of Jump Desktop Audio.
-* **Menu Bar Status & Control:** Clean menu bar icon showing live output/input, quick device selection submenus, and one-click manual restore (⌘R).
+2. **iOS-Style Floating Volume HUD:**
+   * When volume is adjusted via keyboard shortcut keys (F11/F12 / Media keys) or hardware buttons, a frosted-glass floating capsule HUD smoothly animates at the top of your screen showing the speaker icon, level bar, and percentage.
+
+3. **Direct Input & Output Device Selection:**
+   * Direct dropdown lists of all detected Output and Input devices for instant one-click switching (marked with active `✓` indicators).
+
+4. **⚡ Instant Preferred Audio Restore (Top Action):**
+   * Prominently placed at the very top of the menu (`⌘R`) to immediately reset all sound and microphone routing to your designated physical setup.
+
+5. **Selectable Guarded Virtual Drivers:**
+   * Automatically discovers all virtual audio drivers on your Mac (Jump Desktop, Microsoft Teams, Zoom, Loopback, BlackHole, Parrot, etc.).
+   * Includes a **🛡️ Guarded Virtual Drivers** submenu where you can check or uncheck individual drivers to guard against.
+
+6. **Automatic Revert & Fallback Protection:**
+   * **Allows remote audio when you need it:** Automatically detects when a guarded remote session is actively streaming audio and permits it.
+   * **Auto-Reverts on Disconnect:** The moment a remote session ends, AudioGuard instantly restores your physical speakers.
+   * **Blocks False Fallback:** When AirPods or headphones disconnect, AudioGuard intercepts in <200ms and forces macOS to your physical fallback device instead of an idle virtual driver.
 
 ---
 
@@ -39,7 +49,7 @@ curl -fsSL https://raw.githubusercontent.com/benny2168/audioguard/main/install.s
    git clone https://github.com/benny2168/audioguard.git
    cd audioguard
    ```
-2. Run the installer:
+2. Build and install:
    ```bash
    chmod +x install.sh
    ./install.sh
@@ -47,17 +57,39 @@ curl -fsSL https://raw.githubusercontent.com/benny2168/audioguard/main/install.s
 
 ---
 
-## Menu Bar Controls
+## Menu Layout
 
-Click the speaker icon in your macOS Menu Bar:
-
-* **🟢 Status Header:** Shows current audio state (`🟢 Guarding` / `🔵 Jump Remote Active`).
-* **🎵 Preferred Fallback Output:** Submenu to select your primary fallback speaker/DAC.
-* **🎙️ Preferred Fallback Input:** Submenu to select your primary microphone.
-* **⚡ Switch to Preferred Audio Now (⌘R):** Immediately resets audio.
-* **✓ Auto-Revert on Jump Disconnect:** Automatically switches back when remote session ends.
-* **✓ Block Jump Audio as Auto-Fallback:** Prevents Jump from becoming the secondary fallback device.
-* **✓ Launch at Login:** Automatically starts on macOS boot.
+```text
+⚡ Switch to Preferred Audio (Mac Studio Speakers) [⌘R]
+───────────────────────────────────────────────────────
+🔊 [━━━━━━━●━━━━━] 65%  (Interactive Volume Slider)
+───────────────────────────────────────────────────────
+🟢 AudioGuard: Active & Guarding
+───────────────────────────────────────────────────────
+OUTPUT DEVICES
+  🔊 Mac Studio Speakers ✓
+  🔊 XR18
+  🔊 Odyssey G93SD
+  📡 Jump Desktop Audio
+───────────────────────────────────────────────────────
+INPUT DEVICES
+  🎙️ Yeti X ✓
+  🎙️ XR18
+  🎙️ Logitech BRIO
+  📡 Jump Desktop Microphone
+───────────────────────────────────────────────────────
+🎵 Preferred Fallback Output  ▶
+🎙️ Preferred Fallback Input   ▶
+🛡️ Guarded Virtual Drivers   ▶ [✓ Jump Desktop, ✓ Teams, ✓ Zoom, ...]
+───────────────────────────────────────────────────────
+✓ Auto-Revert on App Disconnect
+✓ Block Guarded Drivers as Auto-Fallback
+✓ Show iOS-Style Floating Volume HUD
+✓ Show Notifications on Revert
+✓ Launch at Login
+───────────────────────────────────────────────────────
+Quit AudioGuard [⌘Q]
+```
 
 ---
 
@@ -66,4 +98,4 @@ Click the speaker icon in your macOS Menu Bar:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/benny2168/audioguard/main/uninstall.sh | bash
 ```
-Or run `./uninstall.sh` from this repository.
+Or run `./uninstall.sh` locally.

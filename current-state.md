@@ -1,16 +1,17 @@
 # Current State
 
 ## Active Status
-- Version: 1.0.0
+- Version: 1.1.0
 - Repository: `benny2168/audioguard`
 - Deployed on: Mac Studio (Apple M2 Max, macOS 26.3)
 - Application Path: `/Applications/AudioGuard.app`
 
 ## What is Working
-- Native Menu Bar UI with real-time status indication and device switching.
-- CoreAudio property listeners for default output/input and device topology changes.
-- Jump Desktop virtual audio driver (`Jump Desktop Audio`) stream detection via `kAudioDevicePropertyDeviceIsRunningSomewhere`.
-- Automatic reversion to preferred physical device when remote sessions terminate.
-- Block Jump Audio from becoming the default secondary fallback when AirPods/headphones disconnect.
-- Launch at login support via `ServiceManagement` (`SMAppService.mainApp`).
-- One-line `curl` installer script `install.sh`.
+- Complete Menu Bar sound controller with interactive volume slider and mute toggle.
+- iOS-style floating volume HUD animating on volume keyboard shortcut changes.
+- Direct output and input device switcher lists with active selection checkmarks.
+- "⚡ Switch to Preferred Audio Now" placed at the top of the menu (`⌘R`).
+- Dynamic virtual driver discovery and multi-select guarding submenu (Jump Desktop, Teams, Zoom, Loopback, BlackHole).
+- Automatic reversion on session disconnect and fallback prevention.
+- Launch at login and macOS User Notifications.
+- Tested and running live in the macOS Menu Bar.
