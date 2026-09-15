@@ -29,18 +29,17 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 if [ -f "${SCRIPT_DIR}/src/main.swift" ] && [ -f "${SCRIPT_DIR}/src/Info.plist" ]; then
     echo "📁 Using local source files from ${SCRIPT_DIR}/src..."
-    SRC_FILE="${SCRIPT_DIR}/src/main.swift"
-    PLIST_FILE="${SCRIPT_DIR}/src/Info.plist"
-    ICON_FILE="${SCRIPT_DIR}/src/AppIcon.icns"
+    SRC_DIR="${SCRIPT_DIR}"
 else
-    echo "🌐 Downloading latest source from GitHub..."
-    SRC_FILE="${TEMP_DIR}/main.swift"
-    PLIST_FILE="${TEMP_DIR}/Info.plist"
-    ICON_FILE="${TEMP_DIR}/AppIcon.icns"
-    curl -fsSL "https://raw.githubusercontent.com/benny2168/audioguard/main/src/main.swift" -o "${SRC_FILE}"
-    curl -fsSL "https://raw.githubusercontent.com/benny2168/audioguard/main/src/Info.plist" -o "${PLIST_FILE}"
-    curl -fsSL "https://raw.githubusercontent.com/benny2168/audioguard/main/src/AppIcon.icns" -o "${ICON_FILE}" 2>/dev/null || true
+    echo "🌐 Downloading latest release directly from GitHub..."
+    SRC_DIR="${TEMP_DIR}/source"
+    mkdir -p "${SRC_DIR}"
+    curl -fsSL "https://github.com/benny2168/audioguard/archive/refs/heads/main.tar.gz" | tar -xzf - -C "${SRC_DIR}" --strip-components=1
 fi
+
+SRC_FILE="${SRC_DIR}/src/main.swift"
+PLIST_FILE="${SRC_DIR}/src/Info.plist"
+ICON_FILE="${SRC_DIR}/src/AppIcon.icns"
 
 # 3. Create App Bundle
 echo "📦 Building ${APP_NAME}.app..."

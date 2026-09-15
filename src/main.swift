@@ -712,7 +712,7 @@ class UpdateManager {
     private(set) var lastCheckTime: Date? = nil
     
     var currentVersion: String {
-        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.1"
+        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.2"
     }
     
     func startPeriodicChecks() {
@@ -840,8 +840,13 @@ class UpdateManager {
         let versionText = availableUpdateVersion ?? "latest"
         sendNotification(title: "Updating AudioGuard", body: "Installing v\(versionText)... AudioGuard will relaunch automatically.")
         
-        // Spawn detached installer script via Process
-        let script = "curl -fsSL https://raw.githubusercontent.com/benny2168/audioguard/main/install.sh | bash"
+        // Spawn detached installer script via Process using real-time repository archive
+        let script = """
+        TMPDIR=$(mktemp -d /tmp/audioguard_update.XXXXXX)
+        curl -fsSL "https://github.com/benny2168/audioguard/archive/refs/heads/main.tar.gz" | tar -xzf - -C "$TMPDIR" --strip-components=1
+        bash "$TMPDIR/install.sh"
+        rm -rf "$TMPDIR"
+        """
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/bash")
         process.arguments = ["-c", script]

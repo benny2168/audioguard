@@ -1,7 +1,7 @@
 # Current State
 
 ## Active Status
-- Version: 1.3.1
+- Version: 1.3.2
 - Repository: `benny2168/audioguard`
 - Deployed on: Mac Studio (Apple M2 Max, macOS 26.3)
 - Application Path: `/Applications/AudioGuard.app`

@@ -1,5 +1,8 @@
 # Change Tracker
 
+## 2026-09-15 - Version 1.3.2: Direct Git Archive Tarball Updater
+- **Fix:** Switched one-click installer and background updater to download the live GitHub repository archive tarball (`main.tar.gz`), eliminating raw Fastly CDN caching delays completely.
+
 ## 2026-09-15 - Version 1.3.1: Dante DVS & Audio Interface Guard Sanitization
 - **Fix:** Prevented professional audio drivers (such as Dante Virtual Soundcard / DVS, Loopback, BlackHole) from being auto-guarded. Auto-guarding is now strictly scoped to remote desktop streaming drivers (e.g., Jump Desktop).
 - **Refinement:** Clarified status indicator to distinguish "Remote Desktop Session" from other guarded streams.
