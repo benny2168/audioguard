@@ -556,6 +556,17 @@ class AudioGuardEngine {
     private var previouslyRunningGuardedUIDs: Set<String> = []
     
     func start() {
+        // One-time migration for v1.3.1: remove audio utility / interface drivers (Dante DVS, Loopback, BlackHole) from guarded set if they were auto-added
+        if !defaults.bool(forKey: "hasCleanedUpGuardedDefaultsV131") {
+            var current = guardedDeviceUIDs
+            current = current.filter { uid in
+                let u = uid.lowercased()
+                return u.contains("jump") // Only keep true remote desktop drivers (e.g. Jump Desktop)
+            }
+            guardedDeviceUIDs = current
+            defaults.set(true, forKey: "hasCleanedUpGuardedDefaultsV131")
+        }
+        
         // Initialize guarded devices list with remote streaming drivers (e.g. Jump Desktop) by default if first run
         if defaults.object(forKey: "guardedDeviceUIDs") == nil {
             let remoteVirtuals = AudioManager.shared.getAllDevices().filter { 
@@ -950,7 +961,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // -------------------------------------------------------------
         let statusTitle: String
         if let guarded = activeGuarded {
-            statusTitle = "🔵 Remote Session Active: \(guarded)"
+            if guarded.lowercased().contains("jump") {
+                statusTitle = "🔵 Remote Desktop Session: \(guarded)"
+            } else {
+                statusTitle = "🔵 Active Guarded Session: \(guarded)"
+            }
         } else if let cur = currentOut, AudioGuardEngine.shared.isGuarded(uid: cur.uid) {
             statusTitle = "🟡 Guarded Driver Active: \(cur.name)"
         } else {

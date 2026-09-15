@@ -1,5 +1,9 @@
 # Change Tracker
 
+## 2026-09-15 - Version 1.3.1: Dante DVS & Audio Interface Guard Sanitization
+- **Fix:** Prevented professional audio drivers (such as Dante Virtual Soundcard / DVS, Loopback, BlackHole) from being auto-guarded. Auto-guarding is now strictly scoped to remote desktop streaming drivers (e.g., Jump Desktop).
+- **Refinement:** Clarified status indicator to distinguish "Remote Desktop Session" from other guarded streams.
+
 ## 2026-09-15 - Version 1.3.0: GitHub Update Detection & Direct In-App Updater
 - **Feature Additions:**
   - **Auto-Update Engine:** Created `UpdateManager` that periodically checks GitHub for new versions of AudioGuard via `Info.plist`.
