@@ -498,14 +498,72 @@ class AudioGuardEngine {
         }
     }
     
+    // Configurable set of hidden output device UIDs
+    var hiddenOutputUIDs: Set<String> {
+        get {
+            if let array = defaults.stringArray(forKey: "hiddenOutputUIDs") {
+                return Set(array)
+            }
+            return []
+        }
+        set {
+            defaults.set(Array(newValue), forKey: "hiddenOutputUIDs")
+        }
+    }
+    
+    // Configurable set of hidden input device UIDs
+    var hiddenInputUIDs: Set<String> {
+        get {
+            if let array = defaults.stringArray(forKey: "hiddenInputUIDs") {
+                return Set(array)
+            }
+            return []
+        }
+        set {
+            defaults.set(Array(newValue), forKey: "hiddenInputUIDs")
+        }
+    }
+    
+    func isHiddenOutput(uid: String) -> Bool {
+        return hiddenOutputUIDs.contains(uid)
+    }
+    
+    func toggleHiddenOutput(uid: String) {
+        var current = hiddenOutputUIDs
+        if current.contains(uid) {
+            current.remove(uid)
+        } else {
+            current.insert(uid)
+        }
+        hiddenOutputUIDs = current
+    }
+    
+    func isHiddenInput(uid: String) -> Bool {
+        return hiddenInputUIDs.contains(uid)
+    }
+    
+    func toggleHiddenInput(uid: String) {
+        var current = hiddenInputUIDs
+        if current.contains(uid) {
+            current.remove(uid)
+        } else {
+            current.insert(uid)
+        }
+        hiddenInputUIDs = current
+    }
+    
     private(set) var activeGuardedDeviceName: String? = nil
     private var previouslyRunningGuardedUIDs: Set<String> = []
     
     func start() {
-        // Initialize guarded devices list with all detected virtual devices by default if first run
+        // Initialize guarded devices list with remote streaming drivers (e.g. Jump Desktop) by default if first run
         if defaults.object(forKey: "guardedDeviceUIDs") == nil {
-            let virtuals = AudioManager.shared.getAllDevices().filter { $0.isVirtual }
-            guardedDeviceUIDs = Set(virtuals.map { $0.uid })
+            let remoteVirtuals = AudioManager.shared.getAllDevices().filter { 
+                let u = $0.uid.lowercased()
+                let n = $0.name.lowercased()
+                return u.contains("jump") || n.contains("jump")
+            }
+            guardedDeviceUIDs = Set(remoteVirtuals.map { $0.uid })
         }
         
         // Register default preferred if not set
@@ -675,25 +733,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func updateStatusIcon() {
         guard let button = statusItem.button else { return }
         let (volume, isMuted) = AudioManager.shared.getVolume()
-        let activeGuarded = AudioGuardEngine.shared.activeGuardedDeviceName
         
-        if activeGuarded != nil {
-            button.image = NSImage(systemSymbolName: "antenna.radiowaves.left.and.right", accessibilityDescription: "Remote Audio Active")
-            button.title = " Remote"
+        button.title = "" // Keep title completely clear of text (no " Remote" text in menu bar)
+        
+        let symbolName: String
+        if isMuted || volume == 0 {
+            symbolName = "speaker.slash.fill"
+        } else if volume < 0.33 {
+            symbolName = "speaker.wave.1.fill"
+        } else if volume < 0.66 {
+            symbolName = "speaker.wave.2.fill"
         } else {
-            let symbolName: String
-            if isMuted || volume == 0 {
-                symbolName = "speaker.slash.fill"
-            } else if volume < 0.33 {
-                symbolName = "speaker.wave.1.fill"
-            } else if volume < 0.66 {
-                symbolName = "speaker.wave.2.fill"
-            } else {
-                symbolName = "speaker.wave.3.fill"
-            }
-            button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Volume Control")
-            button.title = ""
+            symbolName = "speaker.wave.3.fill"
         }
+        button.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "AudioGuard Sound Control")
     }
     
     @objc func updateMenu() {
@@ -752,8 +805,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         let allDevices = AudioManager.shared.getAllDevices()
         let outDevices = allDevices.filter { $0.isOutput }
+        let visibleOutDevices = outDevices.filter { !AudioGuardEngine.shared.isHiddenOutput(uid: $0.uid) }
         
-        for dev in outDevices {
+        for dev in visibleOutDevices {
             let isCurrent = dev.id == currentOut?.id
             let iconPrefix = dev.isVirtual ? "📡 " : "🔊 "
             let item = NSMenuItem(title: "\(iconPrefix)\(dev.name)", action: #selector(selectOutputDevice(_:)), keyEquivalent: "")
@@ -773,7 +827,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(inHeader)
         
         let inDevices = allDevices.filter { $0.isInput }
-        for dev in inDevices {
+        let visibleInDevices = inDevices.filter { !AudioGuardEngine.shared.isHiddenInput(uid: $0.uid) }
+        
+        for dev in visibleInDevices {
             let isCurrent = dev.id == currentIn?.id
             let iconPrefix = dev.isVirtual ? "📡 " : "🎙️ "
             let item = NSMenuItem(title: "\(iconPrefix)\(dev.name)", action: #selector(selectInputDevice(_:)), keyEquivalent: "")
@@ -789,10 +845,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 6. PREFERRED FALLBACK SUBMENUS
         // -------------------------------------------------------------
         let prefOutMenu = NSMenu()
-        let physicalOuts = outDevices.filter { !$0.isVirtual }
+        let fallbackOutDevices = outDevices.filter { !AudioGuardEngine.shared.isHiddenOutput(uid: $0.uid) }
         let currentPrefOut = AudioGuardEngine.shared.preferredOutputUID
-        for dev in physicalOuts {
-            let item = NSMenuItem(title: dev.name, action: #selector(setPreferredOutput(_:)), keyEquivalent: "")
+        for dev in fallbackOutDevices {
+            let iconPrefix = dev.isVirtual ? "📡 " : "🔊 "
+            let item = NSMenuItem(title: "\(iconPrefix)\(dev.name)", action: #selector(setPreferredOutput(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = dev.uid
             if dev.uid == currentPrefOut { item.state = .on }
@@ -803,10 +860,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(prefOutMenuItem)
         
         let prefInMenu = NSMenu()
-        let physicalIns = inDevices.filter { !$0.isVirtual }
+        let fallbackInDevices = inDevices.filter { !AudioGuardEngine.shared.isHiddenInput(uid: $0.uid) }
         let currentPrefIn = AudioGuardEngine.shared.preferredInputUID
-        for dev in physicalIns {
-            let item = NSMenuItem(title: dev.name, action: #selector(setPreferredInput(_:)), keyEquivalent: "")
+        for dev in fallbackInDevices {
+            let iconPrefix = dev.isVirtual ? "📡 " : "🎙️ "
+            let item = NSMenuItem(title: "\(iconPrefix)\(dev.name)", action: #selector(setPreferredInput(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = dev.uid
             if dev.uid == currentPrefIn { item.state = .on }
@@ -817,7 +875,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(prefInMenuItem)
         
         // -------------------------------------------------------------
-        // 7. GUARDED VIRTUAL DRIVERS (Select / Deselect Multi-List)
+        // 7. GUARDED VIRTUAL DRIVERS & HIDDEN DEVICE FILTERING
         // -------------------------------------------------------------
         let virtualMenu = NSMenu()
         let virtualDevices = allDevices.filter { $0.isVirtual }
@@ -833,6 +891,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let virtualMenuItem = NSMenuItem(title: "🛡️ Guarded Virtual Drivers", action: nil, keyEquivalent: "")
         virtualMenuItem.submenu = virtualMenu
         menu.addItem(virtualMenuItem)
+        
+        // Cascaded Submenu: Hidden Outputs
+        let hiddenOutMenu = NSMenu()
+        for dev in outDevices {
+            let isHidden = AudioGuardEngine.shared.isHiddenOutput(uid: dev.uid)
+            let iconPrefix = dev.isVirtual ? "📡 " : "🔊 "
+            let item = NSMenuItem(title: "\(iconPrefix)\(dev.name)", action: #selector(toggleHiddenOutputDevice(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = dev.uid
+            item.state = isHidden ? .on : .off
+            hiddenOutMenu.addItem(item)
+        }
+        let hiddenOutMenuItem = NSMenuItem(title: "👁️‍🗨️ Hidden Outputs", action: nil, keyEquivalent: "")
+        hiddenOutMenuItem.submenu = hiddenOutMenu
+        menu.addItem(hiddenOutMenuItem)
+        
+        // Cascaded Submenu: Hidden Inputs
+        let hiddenInMenu = NSMenu()
+        for dev in inDevices {
+            let isHidden = AudioGuardEngine.shared.isHiddenInput(uid: dev.uid)
+            let iconPrefix = dev.isVirtual ? "📡 " : "🎙️ "
+            let item = NSMenuItem(title: "\(iconPrefix)\(dev.name)", action: #selector(toggleHiddenInputDevice(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = dev.uid
+            item.state = isHidden ? .on : .off
+            hiddenInMenu.addItem(item)
+        }
+        let hiddenInMenuItem = NSMenuItem(title: "👁️‍🗨️ Hidden Inputs", action: nil, keyEquivalent: "")
+        hiddenInMenuItem.submenu = hiddenInMenu
+        menu.addItem(hiddenInMenuItem)
         
         menu.addItem(NSMenuItem.separator())
         
@@ -948,6 +1036,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func setPreferredOutput(_ sender: NSMenuItem) {
         if let uid = sender.representedObject as? String {
             AudioGuardEngine.shared.preferredOutputUID = uid
+            // If the user chooses this as preferred, unguard it automatically
+            if AudioGuardEngine.shared.isGuarded(uid: uid) {
+                AudioGuardEngine.shared.toggleGuarded(uid: uid)
+            }
             updateMenu()
         }
     }
@@ -962,6 +1054,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func toggleGuardedDevice(_ sender: NSMenuItem) {
         if let uid = sender.representedObject as? String {
             AudioGuardEngine.shared.toggleGuarded(uid: uid)
+            updateMenu()
+        }
+    }
+    
+    @objc func toggleHiddenOutputDevice(_ sender: NSMenuItem) {
+        if let uid = sender.representedObject as? String {
+            AudioGuardEngine.shared.toggleHiddenOutput(uid: uid)
+            updateMenu()
+        }
+    }
+    
+    @objc func toggleHiddenInputDevice(_ sender: NSMenuItem) {
+        if let uid = sender.representedObject as? String {
+            AudioGuardEngine.shared.toggleHiddenInput(uid: uid)
             updateMenu()
         }
     }

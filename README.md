@@ -23,7 +23,15 @@ A modern, all-in-one native macOS Menu Bar application that replaces the default
    * Automatically discovers all virtual audio drivers on your Mac (Jump Desktop, Microsoft Teams, Zoom, Loopback, BlackHole, Parrot, etc.).
    * Includes a **🛡️ Guarded Virtual Drivers** submenu where you can check or uncheck individual drivers to guard against.
 
-6. **Automatic Revert & Fallback Protection:**
+6. **Cascaded Hidden Output & Input Pickers:**
+   * Declutter your sound menus by hiding unwanted aggregate, display, or virtual devices.
+   * Includes **👁️‍🗨️ Hidden Outputs** and **👁️‍🗨️ Hidden Inputs** submenus directly below Guarded Virtual Drivers.
+   * When checked, hidden devices are automatically excluded from the main selection lists and preferred fallback pickers.
+
+7. **Flexible Virtual Audio Support (Loopback, etc.):**
+   * Virtual output devices (like Rogue Amoeba Loopback) can now be designated directly as your preferred fallback output or input.
+
+8. **Automatic Revert & Fallback Protection:**
    * **Allows remote audio when you need it:** Automatically detects when a guarded remote session is actively streaming audio and permits it.
    * **Auto-Reverts on Disconnect:** The moment a remote session ends, AudioGuard instantly restores your physical speakers.
    * **Blocks False Fallback:** When AirPods or headphones disconnect, AudioGuard intercepts in <200ms and forces macOS to your physical fallback device instead of an idle virtual driver.
@@ -69,18 +77,17 @@ curl -fsSL https://raw.githubusercontent.com/benny2168/audioguard/main/install.s
 OUTPUT DEVICES
   🔊 Mac Studio Speakers ✓
   🔊 XR18
-  🔊 Odyssey G93SD
-  📡 Jump Desktop Audio
+  🔊 Loopback Audio
 ───────────────────────────────────────────────────────
 INPUT DEVICES
   🎙️ Yeti X ✓
   🎙️ XR18
-  🎙️ Logitech BRIO
-  📡 Jump Desktop Microphone
 ───────────────────────────────────────────────────────
-🎵 Preferred Fallback Output  ▶
-🎙️ Preferred Fallback Input   ▶
-🛡️ Guarded Virtual Drivers   ▶ [✓ Jump Desktop, ✓ Teams, ✓ Zoom, ...]
+🎵 Preferred Fallback Output  ▶ [Mac Studio Speakers, XR18, Loopback Audio, ...]
+🎙️ Preferred Fallback Input   ▶ [Yeti X, XR18, ...]
+🛡️ Guarded Virtual Drivers   ▶ [✓ Jump Desktop, Teams, Zoom, ...]
+👁️‍🗨️ Hidden Outputs            ▶ [Odyssey G93SD, DisplayPort Audio, ...]
+👁️‍🗨️ Hidden Inputs             ▶ [Logitech BRIO Mic, ...]
 ───────────────────────────────────────────────────────
 ✓ Auto-Revert on App Disconnect
 ✓ Block Guarded Drivers as Auto-Fallback

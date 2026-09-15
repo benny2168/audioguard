@@ -1,5 +1,16 @@
 # Change Tracker
 
+## 2026-09-15 - Version 1.2.0: App Icon, Loopback Fallback & Hidden Device Management
+- **Fixes & Enhancements:**
+  - **Menu Bar Status Label:** Removed text clutter (`Remote`) from the menu bar button, maintaining a clean volume/speaker status icon.
+  - **Custom App Icon:** Integrated high-resolution custom app branding icon into `.app` bundle Resources (`AppIcon.icns`) and `Info.plist`.
+  - **Loopback & Virtual Fallback Support:** Unlocked virtual audio devices (such as Loopback) to be designated as preferred fallback outputs/inputs.
+  - **Hidden Device Management:** Added cascaded submenus below Guarded Virtual Drivers for "👁️‍🗨️ Hidden Outputs" and "👁️‍🗨️ Hidden Inputs". Checked devices are cleanly hidden from the main device lists and preferred fallback pickers.
+  - **Updated Installers:** Updated `build.sh` and `install.sh` to package `AppIcon.icns` and handle smooth app relaunch.
+- **Validation:**
+  - Built with `./build.sh` and installed via `./install.sh`.
+  - Verified menu bar icon without text clutter, custom icon packaging, and device hiding logic.
+
 ## 2026-09-15 - Version 1.1.0: Full Sound Control & Floating HUD
 - **Feature Additions:**
   - Added interactive system volume slider and mute toggle directly in the menu bar dropdown.

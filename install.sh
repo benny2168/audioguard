@@ -31,12 +31,15 @@ if [ -f "${SCRIPT_DIR}/src/main.swift" ] && [ -f "${SCRIPT_DIR}/src/Info.plist" 
     echo "📁 Using local source files from ${SCRIPT_DIR}/src..."
     SRC_FILE="${SCRIPT_DIR}/src/main.swift"
     PLIST_FILE="${SCRIPT_DIR}/src/Info.plist"
+    ICON_FILE="${SCRIPT_DIR}/src/AppIcon.icns"
 else
     echo "🌐 Downloading latest source from GitHub..."
     SRC_FILE="${TEMP_DIR}/main.swift"
     PLIST_FILE="${TEMP_DIR}/Info.plist"
+    ICON_FILE="${TEMP_DIR}/AppIcon.icns"
     curl -fsSL "https://raw.githubusercontent.com/benny2168/audioguard/main/src/main.swift" -o "${SRC_FILE}"
     curl -fsSL "https://raw.githubusercontent.com/benny2168/audioguard/main/src/Info.plist" -o "${PLIST_FILE}"
+    curl -fsSL "https://raw.githubusercontent.com/benny2168/audioguard/main/src/AppIcon.icns" -o "${ICON_FILE}" 2>/dev/null || true
 fi
 
 # 3. Create App Bundle
@@ -45,6 +48,9 @@ mkdir -p "${TEMP_DIR}/${APP_NAME}.app/Contents/MacOS"
 mkdir -p "${TEMP_DIR}/${APP_NAME}.app/Contents/Resources"
 
 cp "${PLIST_FILE}" "${TEMP_DIR}/${APP_NAME}.app/Contents/Info.plist"
+if [ -f "${ICON_FILE}" ]; then
+    cp "${ICON_FILE}" "${TEMP_DIR}/${APP_NAME}.app/Contents/Resources/AppIcon.icns"
+fi
 
 # 4. Compile Swift Binary
 swiftc -O "${SRC_FILE}" \
@@ -59,6 +65,7 @@ codesign -s - --force "${TEMP_DIR}/${APP_NAME}.app" >/dev/null 2>&1 || true
 
 # 6. Stop running instance if present
 killall "${APP_NAME}" >/dev/null 2>&1 || true
+sleep 1
 
 # 7. Install to /Applications
 echo "🚀 Installing to ${APP_BUNDLE}..."
@@ -66,7 +73,7 @@ rm -rf "${APP_BUNDLE}"
 cp -R "${TEMP_DIR}/${APP_NAME}.app" "${INSTALL_DIR}/"
 
 # 8. Launch App
-open "${APP_BUNDLE}"
+open "${APP_BUNDLE}" 2>/dev/null || open -a "${APP_BUNDLE}" 2>/dev/null || "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" &
 
 echo "========================================"
 echo "✅ AudioGuard successfully installed!"
