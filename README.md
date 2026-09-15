@@ -31,7 +31,13 @@ A modern, all-in-one native macOS Menu Bar application that replaces the default
 7. **Flexible Virtual Audio Support (Loopback, etc.):**
    * Virtual output devices (like Rogue Amoeba Loopback) can now be designated directly as your preferred fallback output or input.
 
-8. **Automatic Revert & Fallback Protection:**
+8. **Automatic GitHub Update Detection & In-App Updating:**
+   * AudioGuard automatically checks GitHub in the background for new versions.
+   * When an update is detected, an interactive item (`🚀 Update Available: vX.X.X (Click to Install)`) appears at the top of the menu bar dropdown.
+   * Clicking the banner performs a complete seamless in-app update and restarts AudioGuard with zero friction.
+   * You can also click **Check for Updates...** in the menu footer at any time.
+
+9. **Automatic Revert & Fallback Protection:**
    * **Allows remote audio when you need it:** Automatically detects when a guarded remote session is actively streaming audio and permits it.
    * **Auto-Reverts on Disconnect:** The moment a remote session ends, AudioGuard instantly restores your physical speakers.
    * **Blocks False Fallback:** When AirPods or headphones disconnect, AudioGuard intercepts in <200ms and forces macOS to your physical fallback device instead of an idle virtual driver.
@@ -68,6 +74,8 @@ curl -fsSL https://raw.githubusercontent.com/benny2168/audioguard/main/install.s
 ## Menu Layout
 
 ```text
+🚀 Update Available: v1.3.0 (Click to Install)   <-- (Only when update available)
+───────────────────────────────────────────────────────
 ⚡ Switch to Preferred Audio (Mac Studio Speakers) [⌘R]
 ───────────────────────────────────────────────────────
 🔊 [━━━━━━━●━━━━━] 65%  (Interactive Volume Slider)
@@ -94,6 +102,9 @@ INPUT DEVICES
 ✓ Show iOS-Style Floating Volume HUD
 ✓ Show Notifications on Revert
 ✓ Launch at Login
+───────────────────────────────────────────────────────
+Check for Updates...
+AudioGuard v1.3.0
 ───────────────────────────────────────────────────────
 Quit AudioGuard [⌘Q]
 ```

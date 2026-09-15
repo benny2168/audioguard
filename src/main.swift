@@ -687,6 +687,153 @@ class AudioGuardEngine {
     }
 }
 
+// MARK: - Auto-Update Manager
+class UpdateManager {
+    static let shared = UpdateManager()
+    
+    private let githubPlistURL = URL(string: "https://raw.githubusercontent.com/benny2168/audioguard/main/src/Info.plist")!
+    private var checkTimer: Timer?
+    
+    var onUpdateStatusChanged: (() -> Void)?
+    
+    private(set) var availableUpdateVersion: String? = nil
+    private(set) var isChecking: Bool = false
+    private(set) var isUpdating: Bool = false
+    private(set) var lastCheckTime: Date? = nil
+    
+    var currentVersion: String {
+        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.2.0"
+    }
+    
+    func startPeriodicChecks() {
+        // Initial check 5 seconds after startup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            self?.checkForUpdates(silent: true)
+        }
+        
+        // Periodic check every 30 minutes
+        checkTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
+            self?.checkForUpdates(silent: true)
+        }
+    }
+    
+    func checkForUpdates(silent: Bool = false, completion: ((Bool, String?) -> Void)? = nil) {
+        guard !isChecking && !isUpdating else { return }
+        isChecking = true
+        onUpdateStatusChanged?()
+        
+        var request = URLRequest(url: githubPlistURL)
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = 10.0
+        
+        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            defer {
+                DispatchQueue.main.async {
+                    self?.isChecking = false
+                    self?.lastCheckTime = Date()
+                    self?.onUpdateStatusChanged?()
+                }
+            }
+            
+            guard let self = self, let data = data, error == nil else {
+                DispatchQueue.main.async {
+                    if !silent {
+                        self?.sendNotification(title: "Update Check Failed", body: "Could not connect to GitHub to check for updates.")
+                    }
+                    completion?(false, nil)
+                }
+                return
+            }
+            
+            do {
+                if let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
+                   let remoteVersion = plist["CFBundleShortVersionString"] as? String {
+                    
+                    let hasUpdate = self.isVersion(remoteVersion, newerThan: self.currentVersion)
+                    DispatchQueue.main.async {
+                        self.availableUpdateVersion = hasUpdate ? remoteVersion : nil
+                        self.onUpdateStatusChanged?()
+                        
+                        if hasUpdate {
+                            self.sendNotification(
+                                title: "AudioGuard Update Available",
+                                body: "Version \(remoteVersion) is ready. Click the AudioGuard menu bar icon to install."
+                            )
+                        } else if !silent {
+                            self.sendNotification(
+                                title: "AudioGuard Up to Date",
+                                body: "AudioGuard v\(self.currentVersion) is the latest version."
+                            )
+                        }
+                        
+                        completion?(hasUpdate, remoteVersion)
+                    }
+                    return
+                }
+            } catch {
+                print("Failed to parse remote Info.plist: \(error)")
+            }
+            
+            DispatchQueue.main.async {
+                if !silent {
+                    self.sendNotification(title: "Update Check Failed", body: "Could not verify the latest version.")
+                }
+                completion?(false, nil)
+            }
+        }
+        task.resume()
+    }
+    
+    private func isVersion(_ remote: String, newerThan current: String) -> Bool {
+        let rParts = remote.split(separator: ".").compactMap { Int($0) }
+        let cParts = current.split(separator: ".").compactMap { Int($0) }
+        
+        let maxLen = max(rParts.count, cParts.count)
+        for i in 0..<maxLen {
+            let r = i < rParts.count ? rParts[i] : 0
+            let c = i < cParts.count ? cParts[i] : 0
+            if r > c { return true }
+            if r < c { return false }
+        }
+        return false
+    }
+    
+    func performUpdate() {
+        guard !isUpdating else { return }
+        isUpdating = true
+        onUpdateStatusChanged?()
+        
+        let versionText = availableUpdateVersion ?? "latest"
+        sendNotification(title: "Updating AudioGuard", body: "Installing v\(versionText) in the background. AudioGuard will relaunch automatically.")
+        
+        // Spawn detached installer script via Process
+        let script = "curl -fsSL https://raw.githubusercontent.com/benny2168/audioguard/main/install.sh | bash"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = ["-c", script]
+        
+        do {
+            try process.run()
+        } catch {
+            print("Failed to launch updater: \(error)")
+            isUpdating = false
+            onUpdateStatusChanged?()
+            sendNotification(title: "Update Failed", body: "Could not run installer: \(error.localizedDescription)")
+        }
+    }
+    
+    private func sendNotification(title: String, body: String) {
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        center.add(request)
+    }
+}
+
 // MARK: - Menu Bar App Delegate
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem!
@@ -696,10 +843,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private var muteButton: NSButton?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         
         setupStatusItem()
         AudioGuardEngine.shared.start()
+        UpdateManager.shared.startPeriodicChecks()
+        
+        UpdateManager.shared.onUpdateStatusChanged = { [weak self] in
+            self?.updateMenu()
+        }
         
         AudioManager.shared.onDevicesChanged = { [weak self] in
             self?.updateMenu()
@@ -756,6 +908,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let currentIn = AudioManager.shared.getDefaultInputDevice()
         let (volume, isMuted) = AudioManager.shared.getVolume()
         let activeGuarded = AudioGuardEngine.shared.activeGuardedDeviceName
+        
+        // -------------------------------------------------------------
+        // 0. DYNAMIC UPDATE BANNER (If New Version Available on GitHub)
+        // -------------------------------------------------------------
+        if let newVersion = UpdateManager.shared.availableUpdateVersion {
+            let updateTitle = UpdateManager.shared.isUpdating
+                ? "⏳ Installing AudioGuard v\(newVersion)..."
+                : "🚀 Update Available: v\(newVersion) (Click to Install)"
+            let updateItem = NSMenuItem(title: updateTitle, action: #selector(installUpdate), keyEquivalent: "")
+            updateItem.target = self
+            updateItem.isEnabled = !UpdateManager.shared.isUpdating
+            menu.addItem(updateItem)
+            menu.addItem(NSMenuItem.separator())
+        }
         
         // -------------------------------------------------------------
         // 1. TOP ACTION: Switch to Preferred Audio Now (Command+R)
@@ -955,7 +1121,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem.separator())
         
         // -------------------------------------------------------------
-        // 9. QUIT
+        // 9. UPDATES & VERSION INFO
+        // -------------------------------------------------------------
+        let currentVer = UpdateManager.shared.currentVersion
+        let checkTitle = UpdateManager.shared.isChecking ? "Checking for Updates..." : "Check for Updates..."
+        let checkUpdateItem = NSMenuItem(title: checkTitle, action: #selector(manualCheckForUpdates), keyEquivalent: "")
+        checkUpdateItem.target = self
+        checkUpdateItem.isEnabled = !UpdateManager.shared.isChecking && !UpdateManager.shared.isUpdating
+        menu.addItem(checkUpdateItem)
+        
+        let versionItem = NSMenuItem(title: "AudioGuard v\(currentVer)", action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+        
+        menu.addItem(NSMenuItem.separator())
+        
+        // -------------------------------------------------------------
+        // 10. QUIT
         // -------------------------------------------------------------
         let quitItem = NSMenuItem(title: "Quit AudioGuard", action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
@@ -1079,6 +1261,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         updateMenu()
         updateStatusIcon()
+    }
+    
+    @objc func installUpdate() {
+        UpdateManager.shared.performUpdate()
+        updateMenu()
+    }
+    
+    @objc func manualCheckForUpdates() {
+        UpdateManager.shared.checkForUpdates(silent: false)
+        updateMenu()
     }
     
     @objc func toggleAutoRevert() {

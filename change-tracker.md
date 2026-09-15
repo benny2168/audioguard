@@ -1,5 +1,15 @@
 # Change Tracker
 
+## 2026-09-15 - Version 1.3.0: GitHub Update Detection & Direct In-App Updater
+- **Feature Additions:**
+  - **Auto-Update Engine:** Created `UpdateManager` that periodically checks GitHub for new versions of AudioGuard via `Info.plist`.
+  - **Dynamic Menu Option:** When a new version is detected on GitHub, a prominent action item (`🚀 Update Available: vX.X.X - Click to Install`) is dynamically injected at the top of the menu bar dropdown.
+  - **One-Click In-App Updating:** Clicking the update banner executes a background installer that compiles the newest release, replaces the app bundle, and relaunches AudioGuard automatically.
+  - **Manual Update Checking:** Added "Check for Updates..." and version information at the bottom of the menu.
+- **Validation:**
+  - Compiled and launched `/Applications/AudioGuard.app`.
+  - Verified menu structure, update check network routine, and version reflection.
+
 ## 2026-09-15 - Version 1.2.0: App Icon, Loopback Fallback & Hidden Device Management
 - **Fixes & Enhancements:**
   - **Menu Bar Status Label:** Removed text clutter (`Remote`) from the menu bar button, maintaining a clean volume/speaker status icon.
