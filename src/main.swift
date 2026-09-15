@@ -702,7 +702,6 @@ class AudioGuardEngine {
 class UpdateManager {
     static let shared = UpdateManager()
     
-    private let githubPlistURL = URL(string: "https://raw.githubusercontent.com/benny2168/audioguard/main/src/Info.plist")!
     private var checkTimer: Timer?
     
     var onUpdateStatusChanged: (() -> Void)?
@@ -713,17 +712,17 @@ class UpdateManager {
     private(set) var lastCheckTime: Date? = nil
     
     var currentVersion: String {
-        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.2.0"
+        return Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.1"
     }
     
     func startPeriodicChecks() {
-        // Initial check 5 seconds after startup
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+        // Initial check 4 seconds after startup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) { [weak self] in
             self?.checkForUpdates(silent: true)
         }
         
-        // Periodic check every 30 minutes
-        checkTimer = Timer.scheduledTimer(withTimeInterval: 1800, repeats: true) { [weak self] _ in
+        // Periodic check every 15 minutes
+        checkTimer = Timer.scheduledTimer(withTimeInterval: 900, repeats: true) { [weak self] _ in
             self?.checkForUpdates(silent: true)
         }
     }
@@ -733,64 +732,88 @@ class UpdateManager {
         isChecking = true
         onUpdateStatusChanged?()
         
-        var request = URLRequest(url: githubPlistURL)
-        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        request.timeoutInterval = 10.0
-        
-        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            defer {
-                DispatchQueue.main.async {
-                    self?.isChecking = false
-                    self?.lastCheckTime = Date()
-                    self?.onUpdateStatusChanged?()
-                }
-            }
-            
-            guard let self = self, let data = data, error == nil else {
-                DispatchQueue.main.async {
-                    if !silent {
-                        self?.sendNotification(title: "Update Check Failed", body: "Could not connect to GitHub to check for updates.")
-                    }
-                    completion?(false, nil)
-                }
-                return
-            }
-            
-            do {
-                if let plist = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
-                   let remoteVersion = plist["CFBundleShortVersionString"] as? String {
-                    
-                    let hasUpdate = self.isVersion(remoteVersion, newerThan: self.currentVersion)
-                    DispatchQueue.main.async {
-                        self.availableUpdateVersion = hasUpdate ? remoteVersion : nil
-                        self.onUpdateStatusChanged?()
-                        
-                        if hasUpdate {
-                            self.sendNotification(
-                                title: "AudioGuard Update Available",
-                                body: "Version \(remoteVersion) is ready. Click the AudioGuard menu bar icon to install."
-                            )
-                        } else if !silent {
-                            self.sendNotification(
-                                title: "AudioGuard Up to Date",
-                                body: "AudioGuard v\(self.currentVersion) is the latest version."
-                            )
-                        }
-                        
-                        completion?(hasUpdate, remoteVersion)
-                    }
-                    return
-                }
-            } catch {
-                print("Failed to parse remote Info.plist: \(error)")
-            }
+        fetchRemoteVersion { [weak self] remoteVer in
+            guard let self = self else { return }
             
             DispatchQueue.main.async {
-                if !silent {
-                    self.sendNotification(title: "Update Check Failed", body: "Could not verify the latest version.")
+                self.isChecking = false
+                self.lastCheckTime = Date()
+                
+                guard let remoteVersion = remoteVer else {
+                    self.onUpdateStatusChanged?()
+                    if !silent {
+                        self.showErrorAlert(message: "Could not connect to GitHub to check for updates.")
+                    }
+                    completion?(false, nil)
+                    return
                 }
-                completion?(false, nil)
+                
+                let hasUpdate = self.isVersion(remoteVersion, newerThan: self.currentVersion)
+                self.availableUpdateVersion = hasUpdate ? remoteVersion : nil
+                self.onUpdateStatusChanged?()
+                
+                if hasUpdate {
+                    if silent {
+                        self.sendNotification(
+                            title: "AudioGuard Update Available",
+                            body: "Version \(remoteVersion) is ready. Click the AudioGuard menu bar icon to install."
+                        )
+                    } else {
+                        self.showUpdateAvailableAlert(newVersion: remoteVersion)
+                    }
+                } else {
+                    if !silent {
+                        self.showUpToDateAlert()
+                    }
+                }
+                
+                completion?(hasUpdate, remoteVersion)
             }
+        }
+    }
+    
+    private func fetchRemoteVersion(completion: @escaping (String?) -> Void) {
+        // Method 1: Real-time GitHub Contents API (bypasses CDN cache)
+        let apiURL = URL(string: "https://api.github.com/repos/benny2168/audioguard/contents/src/Info.plist")!
+        var request = URLRequest(url: apiURL)
+        request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.setValue("AudioGuard-Updater", forHTTPHeaderField: "User-Agent")
+        request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+        request.timeoutInterval = 8.0
+        
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let data = data, error == nil,
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let base64 = json["content"] as? String {
+                let cleanBase64 = base64.replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: "\r", with: "")
+                if let plistData = Data(base64Encoded: cleanBase64),
+                   let plist = (try? PropertyListSerialization.propertyList(from: plistData, options: [], format: nil)) as? [String: Any],
+                   let ver = plist["CFBundleShortVersionString"] as? String {
+                    completion(ver.trimmingCharacters(in: .whitespacesAndNewlines))
+                    return
+                }
+            }
+            
+            // Method 2: Fallback to Raw GitHub URL
+            let ts = Int(Date().timeIntervalSince1970)
+            guard let rawURL = URL(string: "https://raw.githubusercontent.com/benny2168/audioguard/main/src/Info.plist?ts=\(ts)") else {
+                completion(nil)
+                return
+            }
+            var rawRequest = URLRequest(url: rawURL)
+            rawRequest.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            rawRequest.timeoutInterval = 8.0
+            
+            let rawTask = URLSession.shared.dataTask(with: rawRequest) { rawData, _, _ in
+                if let rawData = rawData,
+                   let plist = (try? PropertyListSerialization.propertyList(from: rawData, options: [], format: nil)) as? [String: Any],
+                   let ver = plist["CFBundleShortVersionString"] as? String {
+                    completion(ver.trimmingCharacters(in: .whitespacesAndNewlines))
+                } else {
+                    completion(nil)
+                }
+            }
+            rawTask.resume()
         }
         task.resume()
     }
@@ -815,7 +838,7 @@ class UpdateManager {
         onUpdateStatusChanged?()
         
         let versionText = availableUpdateVersion ?? "latest"
-        sendNotification(title: "Updating AudioGuard", body: "Installing v\(versionText) in the background. AudioGuard will relaunch automatically.")
+        sendNotification(title: "Updating AudioGuard", body: "Installing v\(versionText)... AudioGuard will relaunch automatically.")
         
         // Spawn detached installer script via Process
         let script = "curl -fsSL https://raw.githubusercontent.com/benny2168/audioguard/main/install.sh | bash"
@@ -829,8 +852,41 @@ class UpdateManager {
             print("Failed to launch updater: \(error)")
             isUpdating = false
             onUpdateStatusChanged?()
-            sendNotification(title: "Update Failed", body: "Could not run installer: \(error.localizedDescription)")
+            showErrorAlert(message: "Could not run installer: \(error.localizedDescription)")
         }
+    }
+    
+    private func showUpdateAvailableAlert(newVersion: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "AudioGuard Update Available"
+        alert.informativeText = "A new version of AudioGuard (v\(newVersion)) is available!\n\nWould you like to install and relaunch now?"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "Install & Relaunch")
+        alert.addButton(withTitle: "Later")
+        if alert.runModal() == .alertFirstButtonReturn {
+            self.performUpdate()
+        }
+    }
+    
+    private func showUpToDateAlert() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "AudioGuard is Up to Date"
+        alert.informativeText = "You are running the latest version (v\(currentVersion))."
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+    
+    private func showErrorAlert(message: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Update Check Failed"
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
     }
     
     private func sendNotification(title: String, body: String) {
